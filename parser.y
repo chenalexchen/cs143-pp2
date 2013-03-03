@@ -81,6 +81,53 @@ void yyerror(const char *msg); // standard error-handling routine
  */
 %type <declList>  DeclList 
 %type <decl>      Decl
+%type <decl>     VariableDecl
+%type <decl>          FunctionDecl
+%type <decl>          ClassDecl
+%type <decl>          InterfaceDecl
+%type <decl>          Variable
+%type <decl>          Type
+%type <decl>          Formals
+%type <decl>          IdentifierList
+%type <decl>          Field
+%type <decl>          Prototype
+%type <decl>          StmtBlock
+%type <decl>          Stmt
+%type <decl>          IfStmt
+%type <decl>          WhileStmt
+%type <decl>          ForStmt
+%type <decl>          ReturnStmt
+%type <decl>          BreakStmt
+%type <decl>          PrintStmt
+%type <decl>          Expr
+%type <decl>          LValue
+%type <decl>          Call
+%type <decl>          Actuals
+%type <decl>          Constant          
+%type <decl>          Extend
+%type <decl>          Implement
+%type <decl>          VariableDeclP
+%type <decl>          StmtP
+%type <decl>	      ElseZ
+%type <decl> 	      ExprZ
+%type <decl>          ExprList
+%type <decl>          ArgList
+
+
+%right 		      '='
+%left  		      T_Or
+%left  		      T_And
+%nonassoc  	      T_NotEqual T_Equal
+%nonassoc  	      T_GreaterEqual '>' T_LessEqual '<'
+%left  		      '-' '+'
+%left  		      '%' '/' '*' 
+%left 		      '!' UMINUS
+%left  		      '.'
+%left  		      '['
+
+%nonassoc              NoElse
+%nonassoc              T_Else
+
 
 %%
 /* Rules
@@ -101,13 +148,170 @@ Program   :    DeclList            {
                                     }
           ;
 
-DeclList  :    DeclList Decl        { ($$=$1)->Append($2); }
-          |    Decl                 { ($$ = new List<Decl*>)->Append($1); }
+DeclList  :    DeclList Decl        { printf("4");
+	       			      /* ($$=$1)->Append($2); */}
+          |    Decl                 { /*($$ = new List<Decl*>)->Append($1);*/
+	       			      printf("3");  
+				    }
           ;
 
-Decl      :    T_Void               { /* pp2: replace with correct rules  */ } 
-          ;
-          
+Decl    :      VariableDecl         { printf("2"); } 
+        |      FunctionDecl         {}
+	|	ClassDecl           {}
+	|	InterfaceDecl       {}
+        ;
+
+VariableDecl  :   Variable ';'        {printf("1");}
+	      ;
+
+Variable      :   Type T_Identifier {}
+	      ;
+
+Type          :   T_Int             {}
+              |	  T_Double            {}
+	      |	  T_Bool              {}
+	      |	  T_String            {}
+	      |	  T_Identifier        {}
+	      |	  Type T_Dims         {}
+              ; 
+
+FunctionDecl  :		Type T_Identifier '(' Formals ')' StmtBlock    {}
+	      |   	T_Void T_Identifier '(' Formals ')' StmtBlock    {}
+	      ;
+
+Formals	      :		ArgList			{}
+	      |					{}
+	      ;
+
+ArgList	      :		ArgList ',' Variable	{}
+	      |		Variable  		{}
+	      ;
+
+ClassDecl     :		T_Class T_Identifier Extend Implement '{' Field '}' {}
+	      ;
+
+Extend        :         T_Extends IdentifierList         {}
+	      |			 			{}
+	      ;
+
+Implement     :		T_Implements IdentifierList     {}
+	      |						{}
+	      ;
+
+IdentifierList :	IdentifierList ',' T_Identifier  {}
+	       |	T_Identifier		      {}
+	       ;
+
+Field	       :	VariableDecl		{}
+	       |	FunctionDecl		{}
+	       ;
+
+InterfaceDecl  :	T_Interface T_Identifier '{' Prototype '}' {}
+               ;
+
+Prototype      :	Type T_Identifier '(' Formals ')' ';'      {}
+	       | 	T_Void T_Identifier '(' Formals ')' ';'	   {}
+	       ;
+
+StmtBlock      :	'{' VariableDeclP StmtP '}'	{}
+	       |	'{' VariableDeclP '}'		{}
+	       | 	'{' StmtP '}'	  		{}
+	       |	'{' '}'	  			{}
+	       ;
+
+VariableDeclP  :	VariableDeclP VariableDecl		{}
+	       |      	VariableDecl	 	  		{}
+	       ;
+
+StmtP	       :	StmtP Stmt		{}
+	       |	Stmt	 		{}
+	       ;
+
+Stmt		 :	ExprZ ';'		{printf("7");}
+		 |	IfStmt			{}
+		 |	WhileStmt		{}
+		 |	ForStmt			{}
+		 |	BreakStmt		{}
+		 |	ReturnStmt		{}
+		 |	PrintStmt		{}
+		 |	StmtBlock		{}
+		 ;
+
+ExprZ		 :	Expr			{printf("6");}
+		 |				{}
+		 ;
+
+IfStmt		 :	T_If '(' Expr ')' Stmt ElseZ	{}
+		 ;
+
+ElseZ		 :	T_Else Stmt  %prec T_Else		{}
+		 |	       	     %prec NoElse		{}
+		 ;
+
+WhileStmt	 :	T_While	'(' Expr ')' Stmt	{}
+		 ;
+
+ForStmt		 :	T_For '(' ExprZ ';' Expr ';' ExprZ ')' Stmt  {}
+		 ;
+
+ReturnStmt	 :	T_Return ExprZ ';'		{}
+		 ;
+
+BreakStmt	 :	T_Break ';'			{}
+		 ;
+
+PrintStmt	 :	T_Print	'(' ExprList ')' ';'	{}
+		 ;
+
+Expr		 :	LValue '=' Expr	                {printf("5");}
+		 | 	Constant   			{}
+		 | 	LValue				{}
+		 |	T_This				{}
+		 |	Call				{}
+		 |	'(' Expr ')'			{}	
+		 |	Expr '+' Expr			{}
+		 |	Expr '-' Expr			{}
+		 |	Expr '/' Expr			{}
+		 |      Expr '*' Expr                   {}
+		 |	Expr '%' Expr			{}
+		 |	'-' Expr %prec UMINUS		{}
+		 |	Expr '<' Expr			{}
+		 |	Expr T_LessEqual Expr		{}
+		 |	Expr '>' Expr	 		{}
+		 |	Expr T_GreaterEqual Expr	{}
+		 |	Expr T_Equal Expr   		{}
+		 |	Expr T_NotEqual Expr		{}
+		 |	Expr T_And Expr			{}
+		 |	Expr T_Or Expr			{}
+		 |	'!' Expr  			{}
+		 |	T_ReadInteger '(' ')'		{}
+		 |	T_ReadLine '(' ')'		{}
+		 |	T_New T_Identifier		{}
+		 |	T_NewArray '(' Expr ',' Type ')' {}
+		 ;
+
+LValue		 :	T_Identifier		{printf("8");}
+		 |	Expr '.' T_Identifier	{}
+		 | 	Expr '[' Expr ']'	{}
+		 ;
+		 
+Call		 :	T_Identifier '(' Actuals ')'	{}
+		 |	Expr '.' T_Identifier '(' Actuals ')'	{}
+		 ;
+
+Actuals		 :	ExprList	{}
+		 |			{}
+		 ;
+ExprList	 :	ExprList ',' Expr	{}
+		 | 	Expr			{}
+		 ;
+
+Constant	 :	T_IntConstant		{}
+		 |	T_DoubleConstant	{}
+		 |	T_BoolConstant		{}
+		 |	T_StringConstant	{}
+		 |	T_Null			{}
+		 ;
 
 
 %%
@@ -134,5 +338,5 @@ Decl      :    T_Void               { /* pp2: replace with correct rules  */ }
 void InitParser()
 {
    PrintDebug("parser", "Initializing parser");
-   yydebug = false;
+   yydebug = true;
 }
