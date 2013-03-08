@@ -68,6 +68,10 @@ void yyerror(const char *msg); // standard error-handling routine
     List<Expr *> *exprList;
     LValue *lValue;
     Call *call;
+    List<CaseStmt *> *caseList;
+    CaseStmt *caseStmt;
+    SwitchStmt *switchStmt;
+    DefaultStmt *defaultStmt;
 }
 
 
@@ -79,8 +83,10 @@ void yyerror(const char *msg); // standard error-handling routine
  */
 %token   T_Void T_Bool T_Int T_Double T_String T_Class 
 %token   T_LessEqual T_GreaterEqual T_Equal T_NotEqual T_Dims
+%token   T_POSTPLUSPLUS T_POSTMINUSMINUS
 %token   T_And T_Or T_Null T_Extends T_This T_Interface T_Implements
-%token   T_While T_For T_If T_Else T_Return T_Break
+%token   T_While T_For T_If T_Else T_Return T_Break 
+%token   T_Switch T_Case T_Default
 %token   T_New T_NewArray T_Print T_ReadInteger T_ReadLine
 
 %token   <identifier> T_Identifier
@@ -115,22 +121,18 @@ void yyerror(const char *msg); // standard error-handling routine
 %type <stmtList>        StmtP
 %type <expr>            Expr ExprZ Constant
 %type <ifStmt>          IfStmt
-%type <whileStmt>          WhileStmt
-%type <forStmt>          ForStmt
-%type <returnStmt>          ReturnStmt
-%type <breakStmt>          BreakStmt
-%type <printStmt>          PrintStmt
-%type <exprList>      ExprList Actuals
+%type <whileStmt>       WhileStmt
+%type <forStmt>         ForStmt
+%type <returnStmt>      ReturnStmt
+%type <breakStmt>       BreakStmt
+%type <printStmt>       PrintStmt
+%type <exprList>        ExprList Actuals
 %type <lValue>          LValue
-%type <call>          Call
-
-
-
-
-
-
-
-
+%type <call>            Call
+%type <switchStmt>      SwitchStmt
+%type <caseStmt>        CaseStmt
+%type <caseList>        CaseList
+%type <defaultStmt>     DefaultStmt DefaultZ
 
 %right 		      '='
 %left  		      T_Or
@@ -139,7 +141,7 @@ void yyerror(const char *msg); // standard error-handling routine
 %nonassoc  	      T_GreaterEqual '>' T_LessEqual '<'
 %left  		      '-' '+'
 %left  		      '%' '/' '*' 
-%left 		      '!' UMINUS
+%left 		      '!' UMINUS POSTFIX
 %left  		      '.'
 %left  		      '['
 
@@ -228,9 +230,10 @@ FunctionDecl  :		Type T_Identifier '(' Formals ')' StmtBlock    {
 			
 			}
 	      |   	T_Void T_Identifier '(' Formals ')' StmtBlock  {
+			       fflush(stdout);
 	      		       Identifier *i = new Identifier(@2,$2);
 	      		       Type *v = new Type("void");
-	      		       $$ = new FnDecl(i, v, $4);
+			       $$ = new FnDecl(i, v, $4);
 			       $$->SetFunctionBody($6);
 	      		}
 	      ;
@@ -239,7 +242,7 @@ Formals	      :		ArgList		{
 						$$ = $1;
 	      				}
 	      |				{
-						$$ = NULL;
+						$$ = new List<VarDecl *>();;
 					}
 	      ;
 
@@ -275,7 +278,10 @@ Extend        :         T_Extends T_Identifier   {
 	      			$$ = new NamedType(i);
 	      		}
 	      |					 {
-	      			$$ = NULL;;
+	      			/* according to the definition of class
+				 * this could be NULL 
+				 */
+	      			$$ = NULL;
 			}
 	      ;
 
@@ -283,7 +289,7 @@ Implement     :		T_Implements IdentifierList     {
 	      		$$ = $2;
 	      }
 	      |						{
-	      		$$ = NULL;
+	      		$$ = new List<NamedType *>();
 	      }
 	      ;
 
@@ -337,13 +343,17 @@ StmtBlock      :	'{' VariableDeclP StmtP '}'	{
 	       		    $$ = new StmtBlock($2, $3);
 	       		}
 	       |	'{' VariableDeclP '}'		{
-	       		    $$ = new StmtBlock($2, NULL);
+	       		    List<Stmt *> *stmt = new List<Stmt *>();
+	       		    $$ = new StmtBlock($2, stmt);
 	       		}
 	       | 	'{' StmtP '}'	  		{
-	       		    $$ = new StmtBlock(NULL, $2);
+	       		    List<VarDecl *> *vl = new List<VarDecl *>();
+	       		    $$ = new StmtBlock(vl, $2);
 	       		}
 	       |	'{' '}'	  			{
-	       		    $$ = new StmtBlock(NULL, NULL);
+	       		    List<VarDecl *> *vl = new List<VarDecl *>();
+			    List<Stmt *> *sl = new List<Stmt *>();
+			    $$ = new StmtBlock(vl, sl);
 	       		}
 	       ;
 
@@ -375,6 +385,9 @@ Stmt		 :	ExprZ ';'		{
 		 |	ForStmt			{
 		 	    $$ = $1;
 		 	}
+		 |      SwitchStmt              {
+		 	    $$ = $1;
+		 	}
 		 |	BreakStmt		{
 		 	    $$ = $1;
 		 	}
@@ -393,7 +406,7 @@ ExprZ		 :	Expr			{
 		 	    $$ = $1;
 		 	}
 		 |				{
-		 	    $$ = NULL;
+		 	    $$ = new EmptyExpr();
 		 	}
 		 ;
 
@@ -410,6 +423,42 @@ ElseZ		 :	T_Else Stmt  %prec T_Else		{
 		 	}
 		 ;
 
+SwitchStmt       :      T_Switch '(' Expr ')' '{' CaseList DefaultZ '}' {
+		 		 $$ = new SwitchStmt($3, $6, $7);
+		 	} 
+		 ;
+
+CaseList         :      CaseList CaseStmt {
+		 		 ($$ = $1)->Append($2);
+		 	}
+	 	 |	CaseStmt {
+		 		 ($$ = new List<CaseStmt *>())->Append($1);
+		 	}
+		 ;			
+
+CaseStmt         :      T_Case Constant ':' StmtP {
+		 	       $$ = new CaseStmt($2,$4);
+		 	}
+		 |      T_Case Constant ':' {
+		 	       $$ = new CaseStmt($2, NULL);
+		 	}
+		 ;
+
+DefaultStmt      :      T_Default ':' StmtP {
+		 		  $$ = new DefaultStmt($3);
+		 	}
+		 |      T_Default ':' {
+		 		  $$ = new DefaultStmt(NULL);
+		 	}
+		 ;
+
+DefaultZ         :      DefaultStmt {
+		 		  $$ = $1;
+		 	}
+		 |      {
+				$$ = NULL;
+		 	}
+ 
 WhileStmt	 :	T_While	'(' Expr ')' Stmt	{
 		 	    $$ = new WhileStmt($3, $5);
 		 	}
@@ -439,6 +488,15 @@ Expr		 :	LValue '=' Expr	                {
 		 	    Operator *op = new Operator(@2, "=");
 		 	    $$ = new AssignExpr($1, op, $3);
 		 	}
+		 |      LValue T_POSTPLUSPLUS %prec POSTFIX          {
+		 	    Operator *op = new Operator(@2, "++");
+			    $$ = new PostfixExpr($1, op);
+		 	}
+		 |      LValue T_POSTMINUSMINUS  %prec POSTFIX       {
+		 	    Operator *op = new Operator(@2, "--");
+			    $$ = new PostfixExpr($1, op);
+		 	}
+		 	
 		 | 	Constant   			{
 			    $$ = $1;    
 		 	}
@@ -532,7 +590,8 @@ Expr		 :	LValue '=' Expr	                {
 		 ;
 
 LValue		 :	T_Identifier		{
-		 	    $$ = new LValue(@1);
+		 	    Identifier *i = new Identifier(@1, $1);
+			    $$ = new FieldAccess(NULL, i);
 			    
 		 	}
 		 |	Expr '.' T_Identifier	{
@@ -558,7 +617,7 @@ Actuals		 :	ExprList	{
 		 	    $$ = $1;
 		 	}
 		 |			{
-		 	    $$ = NULL;
+		 	    $$ = new List<Expr *>();
 		 	}
 		 ;
 ExprList	 :	ExprList ',' Expr	{
@@ -611,5 +670,5 @@ Constant	 :	T_IntConstant		{
 void InitParser()
 {
    PrintDebug("parser", "Initializing parser");
-   yydebug = true;
+   yydebug = false;
 }

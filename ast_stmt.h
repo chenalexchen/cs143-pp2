@@ -19,7 +19,8 @@
 class Decl;
 class VarDecl;
 class Expr;
-  
+
+
 class Program : public Node
 {
   protected:
@@ -97,6 +98,40 @@ class IfStmt : public ConditionalStmt
     const char *GetPrintNameForNode() { return "IfStmt"; }
     void PrintChildren(int indentLevel);
 };
+
+class CaseStmt: public Stmt
+{
+ protected:
+  List<Stmt *> *body;
+  Expr *constant;
+ public:
+  CaseStmt(Expr *c, List<Stmt *> *body);  
+  const char *GetPrintNameForNode() { return "Case"; }
+  void PrintChildren(int indentLevel);
+};
+
+class DefaultStmt : public Stmt
+{
+ protected:
+  List<Stmt *> *body;
+ public:
+  DefaultStmt(List<Stmt *> *body);
+  const char *GetPrintNameForNode() { return "Default"; }
+  void PrintChildren(int indentLevel);
+};
+
+class SwitchStmt: public Stmt 
+{
+ protected: 
+  Expr *head;
+  List<CaseStmt *> *caseList;
+  DefaultStmt *defaultStmt;
+ public:
+  SwitchStmt(Expr *h, List<CaseStmt *> *cl, DefaultStmt *d);
+  const char *GetPrintNameForNode() { return "SwitchStmt"; }
+  void PrintChildren(int indentLevel);
+};
+
 
 class BreakStmt : public Stmt 
 {

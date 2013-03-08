@@ -105,6 +105,7 @@ class CompoundExpr : public Expr
   public:
     CompoundExpr(Expr *lhs, Operator *op, Expr *rhs); // for binary
     CompoundExpr(Operator *op, Expr *rhs);             // for unary
+    CompoundExpr(Expr *lhs, Operator *op);                     // for postfix
     void PrintChildren(int indentLevel);
 };
 
@@ -143,6 +144,13 @@ class AssignExpr : public CompoundExpr
   public:
     AssignExpr(Expr *lhs, Operator *op, Expr *rhs) : CompoundExpr(lhs,op,rhs) {}
     const char *GetPrintNameForNode() { return "AssignExpr"; }
+};
+
+class PostfixExpr: public CompoundExpr
+{
+ public:
+ PostfixExpr(Expr *lhs, Operator *op) : CompoundExpr(lhs,op) {}
+  const char *GetPrintNameForNode() { return "PostfixExpr"; }
 };
 
 class LValue : public Expr 
@@ -185,6 +193,9 @@ class FieldAccess : public LValue
     const char *GetPrintNameForNode() { return "FieldAccess"; }
     void PrintChildren(int indentLevel);
 };
+
+
+
 
 /* Like field access, call is used both for qualified base.field()
  * and unqualified field().  We won't figure out until later
